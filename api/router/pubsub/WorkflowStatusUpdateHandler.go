@@ -112,6 +112,7 @@ func (impl *WorkflowStatusUpdateHandlerImpl) SubscribeCD() error {
 			return
 		}
 		impl.logger.Debugw("received cd wf update request body", "body", wfStatus)
+		impl.logger.Infow(">>>>>> history status update", "wfStatus", wfStatus)
 		wfrId, wfrStatus, err := impl.cdHandler.UpdateWorkflow(wfStatus)
 		impl.logger.Debug(wfrId)
 		if err != nil {

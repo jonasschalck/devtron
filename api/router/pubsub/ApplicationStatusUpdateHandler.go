@@ -70,6 +70,8 @@ func (impl *ApplicationStatusUpdateHandlerImpl) Subscribe() error {
 			return
 		}
 		impl.logger.Infow("app update request", "application", application)
+		impl.logger.Infow(">>>>>> history status update", "application", application)
+
 		isHealthy, err := impl.appService.UpdateApplicationStatusAndCheckIsHealthy(application)
 		if err != nil {
 			impl.logger.Errorw("error on application status update", "err", err, "msg", string(msg.Data))
