@@ -76,6 +76,7 @@ type InstalledAppService interface {
 	CheckAppExists(appNames []*appStoreBean.AppNames) ([]*appStoreBean.AppNames, error)
 	DeployDefaultChartOnCluster(bean *cluster2.ClusterBean, userId int32) (bool, error)
 	FindAppDetailsForAppstoreApplication(installedAppId, envId int) (bean2.AppDetailContainer, error)
+	GetInstalledAppVersionHistory(id int) (*appStoreBean.InstallAppVersionHistoryDto, error)
 }
 
 type InstalledAppServiceImpl struct {
@@ -1100,4 +1101,23 @@ func (impl *InstalledAppServiceImpl) FindAppDetailsForAppstoreApplication(instal
 		DeploymentDetailContainer: deploymentContainer,
 	}
 	return appDetail, nil
+}
+
+func (impl InstalledAppServiceImpl) GetInstalledAppVersionHistory(installedApp int) (*appStoreBean.InstallAppVersionHistoryDto, error) {
+	var result *appStoreBean.InstallAppVersionHistoryDto
+	var history []*appStoreBean.IavhDeploymentHistory
+	//TODO - response setup
+
+	installedAppVersions, err := impl.installedAppRepository.GetInstalledAppVersionByInstalledAppId(installedApp)
+	if err != nil {
+		impl.logger.Errorw("error while fetching installed version", "error", err)
+		return result, err
+	}
+	for _, installedAppVersionModel := range installedAppVersions {
+		impl.logger.Info(installedAppVersionModel.InstalledAppId)
+		history = append(history, &appStoreBean.IavhDeploymentHistory{})
+	}
+
+	result.IavhDeploymentHistory = history
+	return result, err
 }
