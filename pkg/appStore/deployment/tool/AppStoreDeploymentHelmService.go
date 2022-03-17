@@ -3,6 +3,8 @@ package appStoreDeploymentTool
 import (
 	"context"
 	client "github.com/devtron-labs/devtron/api/helm-app"
+	"github.com/devtron-labs/devtron/internal/constants"
+	"github.com/devtron-labs/devtron/internal/util"
 	appStoreBean "github.com/devtron-labs/devtron/pkg/appStore/bean"
 	appStoreDiscoverRepository "github.com/devtron-labs/devtron/pkg/appStore/discover/repository"
 	appStoreRepository "github.com/devtron-labs/devtron/pkg/appStore/repository"
@@ -16,7 +18,7 @@ import (
 type AppStoreDeploymentHelmService interface {
 	InstallApp(installAppVersionRequest *appStoreBean.InstallAppVersionDTO, ctx context.Context) error
 	GetAppStatus(installedAppAndEnvDetails appStoreRepository.InstalledAppAndEnvDetails, w http.ResponseWriter, r *http.Request, token string) (string, error)
-	DeleteInstalledApp(ctx context.Context, appName string, environmentName string, installAppVersionRequest *appStoreBean.InstallAppVersionDTO, installedApps *appStoreRepository.InstalledApps, dbTransaction *pg.Tx) error
+	DeleteInstalledAppIfExists(ctx context.Context, appName string, environmentName string, installAppVersionRequest *appStoreBean.InstallAppVersionDTO, installedApps *appStoreRepository.InstalledApps, dbTransaction *pg.Tx) error
 }
 
 type AppStoreDeploymentHelmServiceImpl struct {
@@ -85,13 +87,20 @@ func (impl AppStoreDeploymentHelmServiceImpl) GetAppStatus(installedAppAndEnvDet
 
 	appDetail, err := impl.helmAppService.GetApplicationDetail(ctx, appIdentifier)
 	if err != nil {
+		// handling like argocd
+		impl.Logger.Errorw("error fetching helm app resource tree", "error", err, "appIdentifier", appIdentifier)
+		err = &util.ApiError{
+			Code:            constants.AppDetailResourceTreeNotFound,
+			InternalMessage: "Failed to get resource tree from helm",
+			UserMessage:     "Failed to get resource tree from helm",
+		}
 		return "", err
 	}
 
 	return appDetail.ApplicationStatus, nil
 }
 
-func (impl AppStoreDeploymentHelmServiceImpl) DeleteInstalledApp(ctx context.Context, appName string, environmentName string, installAppVersionRequest *appStoreBean.InstallAppVersionDTO, installedApps *appStoreRepository.InstalledApps, dbTransaction *pg.Tx) error {
+func (impl AppStoreDeploymentHelmServiceImpl) DeleteInstalledAppIfExists(ctx context.Context, appName string, environmentName string, installAppVersionRequest *appStoreBean.InstallAppVersionDTO, installedApps *appStoreRepository.InstalledApps, dbTransaction *pg.Tx) error {
 
 	appIdentifier := &client.AppIdentifier{
 		ClusterId:   installAppVersionRequest.ClusterId,
@@ -99,6 +108,19 @@ func (impl AppStoreDeploymentHelmServiceImpl) DeleteInstalledApp(ctx context.Con
 		Namespace:   installAppVersionRequest.Namespace,
 	}
 
-	_, err := impl.helmAppService.DeleteApplication(ctx, appIdentifier)
-	return err
+	isInstalled, err := impl.helmAppService.IsReleaseInstalled(ctx, appIdentifier)
+	if err != nil {
+		impl.Logger.Errorw("error in checking if helm release is installed or not", "error", err, "appIdentifier", appIdentifier)
+		return err
+	}
+
+	if isInstalled {
+		_, err = impl.helmAppService.DeleteApplication(ctx, appIdentifier)
+		if err != nil {
+			impl.Logger.Errorw("error in deleting helm application", "error", err, "appIdentifier", appIdentifier)
+			return err
+		}
+	}
+
+	return nil
 }
